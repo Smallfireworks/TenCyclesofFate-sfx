@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Annotated
@@ -7,14 +8,13 @@ from pathlib import Path
 
 from fastapi import (
     FastAPI, APIRouter, Depends, HTTPException, status,
-    WebSocket, WebSocketDisconnect, Request
+    WebSocket, WebSocketDisconnect, Request, Form
 )
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.sessions import SessionMiddleware
 from pydantic import BaseModel
 
-from . import auth, game_logic, state_manager, security
+from . import auth_simple as auth, game_logic, state_manager, security
 from .websocket_manager import manager as websocket_manager
 from .live_system import live_manager
 from .config import settings
@@ -36,8 +36,8 @@ async def lifespan(app: FastAPI):
 # --- FastAPI App Instance ---
 app = FastAPI(lifespan=lifespan, title="浮生十梦")
 
-# Add SessionMiddleware for OAuth flow state management
-app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+# SessionMiddleware no longer needed for simple auth
+# app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 # --- Routers ---
 # Router for /api prefixed routes
@@ -47,67 +47,50 @@ root_router = APIRouter()
 
 
 # --- Authentication Routes ---
-@api_router.get('/login/linuxdo')
-async def login_linuxdo(request: Request):
+@api_router.post("/login")
+async def login(
+    username: Annotated[str, Form()],
+    password: Annotated[str, Form()]
+):
     """
-    Redirects the user to Linux.do for authentication.
-    """
-    # Use a hardcoded, absolute URL for the callback to avoid ambiguity
-    # This must match the URL registered in your Linux.do OAuth application settings.
-    redirect_uri = str(request.url.replace(path="/callback"))
-    return await auth.oauth.linuxdo.authorize_redirect(request, redirect_uri)
-
-@root_router.get('/callback')
-async def auth_linuxdo_callback(request: Request):
-    """
-    Handles the callback from Linux.do after authentication.
-    This route is now at the root to match the expected OAuth callback URL.
-    Fetches user info, creates a JWT, and sets it in a cookie.
+    Authenticate user with username and password.
+    Returns JWT token in a cookie.
     """
     try:
-        token = await auth.oauth.linuxdo.authorize_access_token(request)
-    except Exception as e:
-        logger.error(f"Error during OAuth callback: {e}")
+        token_data = await auth.login_for_access_token(username, password)
+        access_token = token_data.access_token
+
+        # Set token in cookie and return success
+        response = {"status": "success", "message": "Login successful"}
+        response = JSONResponse(content=response)
+        response.set_cookie(
+            "token",
+            value=access_token,
+            httponly=True,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax",
+        )
+        return response
+    except HTTPException as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not authorize access token",
+            detail="Invalid username or password"
         )
-
-    resp = await auth.oauth.linuxdo.get('api/user', token=token)
-    resp.raise_for_status()
-    user_info = resp.json()
-
-    # Create JWT with user info from linux.do
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    jwt_payload = {
-        "sub": user_info.get("username"),
-        "id": user_info.get("id"),
-        "name": user_info.get("name"),
-        "trust_level": user_info.get("trust_level"),
-    }
-    access_token = auth.create_access_token(
-        data=jwt_payload, expires_delta=access_token_expires
-    )
-
-    # Set token in cookie and redirect to frontend
-    response = RedirectResponse(url="/")
-    response.set_cookie(
-        "token",
-        value=access_token,
-        httponly=True,
-        max_age=int(access_token_expires.total_seconds()),
-        samesite="lax",
-    )
-    return response
 
 @api_router.post("/logout")
 async def logout():
     """
     Logs the user out by clearing the authentication cookie.
     """
-    response = RedirectResponse(url="/")
+    response = JSONResponse(content={"status": "success", "message": "Logged out successfully"})
     response.delete_cookie("token")
     return response
+
+# --- Health Check Route ---
+@api_router.get("/health")
+async def health_check():
+    """Health check endpoint for Docker and load balancers."""
+    return {"status": "healthy", "timestamp": time.time()}
 
 # --- Game Routes ---
 @api_router.get("/live/players")
@@ -124,6 +107,17 @@ async def init_game(
     This does NOT start a trial, it just ensures the session for the day exists.
     """
     game_state = await game_logic.get_or_create_daily_session(current_user)
+    return game_state
+
+@api_router.post("/game/refresh-attempts")
+async def refresh_attempts(
+    current_user: Annotated[dict, Depends(auth.get_current_active_user)],
+):
+    """
+    Refreshes the daily attempts for a player who has achieved daily success.
+    This allows them to restart today's game session.
+    """
+    game_state = await game_logic.refresh_daily_attempts(current_user)
     return game_state
 
 # --- WebSocket Endpoint ---

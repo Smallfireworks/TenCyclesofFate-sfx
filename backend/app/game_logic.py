@@ -98,6 +98,74 @@ async def get_or_create_daily_session(current_user: dict) -> dict:
     return new_session
 
 
+async def refresh_daily_attempts(current_user: dict) -> dict:
+    """
+    Refreshes the daily attempts for a player who has achieved daily success.
+    This allows them to restart today's game session.
+    """
+    player_id = current_user["username"]
+    today_str = date.today().isoformat()
+    session = await state_manager.get_session(player_id)
+
+    if not session or session.get("session_date") != today_str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active session found for today"
+        )
+
+    if not session.get("daily_success_achieved"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only refresh attempts after achieving daily success"
+        )
+
+    # Reset the session while keeping the date
+    new_session = {
+        "player_id": player_id,
+        "session_date": today_str,
+        "opportunities_remaining": INITIAL_OPPORTUNITIES,
+        "daily_success_achieved": False,
+        "is_in_trial": False,
+        "is_processing": False,
+        "pending_punishment": None,
+        "unchecked_rounds_count": 0,
+        "current_life": None,
+        "internal_history": [{"role": "system", "content": GAME_MASTER_SYSTEM_PROMPT}],
+        "display_history": [
+            """
+# **《浮生十梦》**
+
+【司命星君 恭候汝来】
+
+汝既踏入此门，便是与命运相遇。此处并非凡俗游戏之地，而是命数轮回之所。这里没有升级打怪的平庸套路，没有氪金商城的铜臭味，只有一个亘古不变的命题：**知足与贪欲的永恒博弈**。
+
+汝每日将被赐予十次珍贵的入梦机缘。每一次，星君将为汝随机织就全新的命数——或为寒窗苦读的穷酸书生，或为仗剑江湖的热血侠客，亦或为散修一身的求道之人。万千种可能，无有重复，每一局都是独一无二的浮生一梦。
+
+试炼的核心规则极其简明，却蕴含无穷玄机：在任何关键时刻，汝皆可选择"破碎虚空"，将此生所得的灵石带离此界。然一旦此念既起，汝今日的所有试炼便将就此终结，再无回旋余地。这便是天道对汝的终极考验：是满足于眼前既得的造化，还是冒着失去一切的风险继续问道？
+
+更有深意的是，灵石的价值转化遵循天道玄理——初得之石最为珍贵，后续所得边际递减。此乃天道在潜移默化中传达着上古圣贤的无上智慧：**知足者常乐，贪心者常忧**。
+
+当然，天道有眼，明察秋毫。若汝试图以"奇巧咒语"欺瞒天机，自有专司此职的法官介入，严厉惩戒。此处的每一分造化，都必须通过真正的智慧和抉择来获得，绝无侥幸可言。
+
+**【重要天规须知】**
+- 汝每日拥有【十次】入梦机缘，每开启一次新的轮回便消耗一次
+- 在轮回中若遇道消身殒，该轮回所得将化为泡影，机缘不返
+- 一旦选择"破碎虚空"成功带出灵石，今日试炼即刻终结
+- 十次机缘皆尽而一无所获者，将面临"逆命抉择"的最终审判（未实现）
+
+汝是否已准备好接受命运的考验？司命星君已恭候多时，静待汝开启第一场浮生之梦。
+"""
+        ],
+        "roll_event": None,
+        "redemption_code": None,
+    }
+
+    await state_manager.save_session(player_id, new_session)
+    logger.info(f"Refreshed daily attempts for {player_id}")
+
+    return new_session
+
+
 async def _handle_roll_request(
     player_id: str,
     last_state: dict,

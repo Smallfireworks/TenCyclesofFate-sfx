@@ -6,6 +6,5 @@ passlib[bcrypt]
 openai
 python-multipart
 websockets==12.0
-Authlib
 cryptography
 mysql-connector-python

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     LINUXDO_CLIENT_SECRET: str | None = None
     LINUXDO_SCOPE: str = "read"
 
+    # Authentication Settings (Simple Username/Password)
+    AUTH_USERS: str | None = None  # Format: username1:password1,username2:password2
+
     # Server Settings
     HOST: str = "127.0.0.1"
     PORT: int = 8000
