@@ -7,22 +7,23 @@ from datetime import timedelta
 # 这使得脚本可以从项目根目录运行 (e.g., python scripts/generate_token.py)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.app.auth import create_access_token
+from backend.app.auth_simple import create_access_token
 from backend.app.config import settings
 
 def generate_test_token():
     """
     生成一个用于测试的JWT令牌。
     """
-    # 模拟一个来自Linux.do OAuth流程的用户信息
+    # 模拟一个用户信息（使用新的认证系统格式）
     # 您可以根据需要修改这些值
 
     id = random.randint(10000, 99999)
+    username = "testuser-" + str(id)
     test_user_payload = {
-        "sub": "testuser-" + str(id),
-        "id": id,
+        "sub": username,
+        "id": username,  # Use username as ID for simplicity
         "name": "Test User " + str(id),
-        "trust_level": 4,
+        "trust_level": 1,  # Default trust level for new auth system
     }
 
     # 从配置中获取令牌过期时间
@@ -44,6 +45,10 @@ def generate_test_token():
     print("   - Name: token")
     print(f"   - Value: [paste the token here]")
     print("6. Refresh the page. You should now be logged in as 'Test User'.")
+    print("\n--- Note ---")
+    print("With the new username/password authentication system,")
+    print("you can also simply log in using the configured credentials")
+    print("from the AUTH_USERS environment variable.")
 
 if __name__ == "__main__":
     generate_test_token()

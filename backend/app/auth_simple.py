@@ -35,6 +35,15 @@ class User(BaseModel):
 class UserInDB(User):
     hashed_password: str
 
+# --- Core Functions ---
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain password against its hash."""
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password: str) -> str:
+    """Generate password hash."""
+    return pwd_context.hash(password)
+
 # --- User Management ---
 def parse_auth_users() -> Dict[str, str]:
     """
@@ -66,15 +75,7 @@ def parse_auth_users() -> Dict[str, str]:
 # Load users from environment
 USERS_DB = parse_auth_users()
 
-# --- Core Functions ---
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password: str) -> str:
-    """Generate password hash."""
-    return pwd_context.hash(password)
-
+# --- Authentication Functions ---
 def get_user(username: str) -> Optional[UserInDB]:
     """Get user from the users database."""
     if username in USERS_DB:

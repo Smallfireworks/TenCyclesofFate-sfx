@@ -17,10 +17,18 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-where docker-compose >nul 2>&1
-if %errorlevel% neq 0 (
-    echo %ERROR% Docker Compose is not installed. Please install Docker Compose first.
-    exit /b 1
+REM Check for Docker Compose (try both new and old commands)
+docker compose version >nul 2>&1
+if %errorlevel% equ 0 (
+    set "DOCKER_COMPOSE_CMD=docker compose"
+) else (
+    where docker-compose >nul 2>&1
+    if %errorlevel% equ 0 (
+        set "DOCKER_COMPOSE_CMD=docker-compose"
+    ) else (
+        echo %ERROR% Docker Compose is not available. Please install Docker Compose.
+        exit /b 1
+    )
 )
 
 echo %SUCCESS% Prerequisites check passed.
@@ -86,15 +94,15 @@ if "%1"=="--with-nginx" (
 )
 
 echo %INFO% Building Docker images...
-docker-compose build
+%DOCKER_COMPOSE_CMD% build
 
 echo %INFO% Starting services...
-docker-compose %profile% up -d
+%DOCKER_COMPOSE_CMD% %profile% up -d
 
 echo %SUCCESS% Deployment completed!
 
 REM Show status
-docker-compose ps
+%DOCKER_COMPOSE_CMD% ps
 
 echo.
 echo %SUCCESS% Application is now running!
@@ -107,7 +115,7 @@ goto :eof
 
 :stop
 echo %INFO% Stopping services...
-docker-compose down
+%DOCKER_COMPOSE_CMD% down
 echo %SUCCESS% Services stopped.
 goto :eof
 
@@ -117,7 +125,7 @@ call :deploy
 goto :eof
 
 :logs
-docker-compose logs -f
+%DOCKER_COMPOSE_CMD% logs -f
 goto :eof
 
 :backup
@@ -133,14 +141,14 @@ goto :eof
 
 :update
 echo %INFO% Updating application...
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+%DOCKER_COMPOSE_CMD% down
+%DOCKER_COMPOSE_CMD% build --no-cache
+%DOCKER_COMPOSE_CMD% up -d
 echo %SUCCESS% Application updated.
 goto :eof
 
 :status
-docker-compose ps
+%DOCKER_COMPOSE_CMD% ps
 goto :eof
 
 :show_help

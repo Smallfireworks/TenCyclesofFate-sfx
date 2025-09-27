@@ -12,6 +12,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Global variable for Docker Compose command
+DOCKER_COMPOSE_CMD=""
+
 # Function to print colored output
 print_status() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -43,8 +46,13 @@ check_prerequisites() {
         exit 1
     fi
     
-    if ! command_exists docker-compose; then
-        print_error "Docker Compose is not installed. Please install Docker Compose first."
+    # Check for Docker Compose (try both new and old commands)
+    if docker compose version &> /dev/null; then
+        DOCKER_COMPOSE_CMD="docker compose"
+    elif command_exists docker-compose; then
+        DOCKER_COMPOSE_CMD="docker-compose"
+    else
+        print_error "Docker Compose is not available. Please install Docker Compose."
         exit 1
     fi
     
@@ -98,15 +106,15 @@ deploy() {
     fi
     
     print_status "Building Docker images..."
-    docker-compose build
-    
+    $DOCKER_COMPOSE_CMD build
+
     print_status "Starting services..."
-    docker-compose $profile up -d
-    
+    $DOCKER_COMPOSE_CMD $profile up -d
+
     print_success "Deployment completed!"
-    
+
     # Show status
-    docker-compose ps
+    $DOCKER_COMPOSE_CMD ps
     
     echo
     print_success "Application is now running!"
@@ -123,13 +131,13 @@ deploy() {
 # Stop services
 stop() {
     print_status "Stopping services..."
-    docker-compose down
+    $DOCKER_COMPOSE_CMD down
     print_success "Services stopped."
 }
 
 # Show logs
 logs() {
-    docker-compose logs -f
+    $DOCKER_COMPOSE_CMD logs -f
 }
 
 # Backup data
@@ -145,9 +153,9 @@ backup() {
 # Update application
 update() {
     print_status "Updating application..."
-    docker-compose down
-    docker-compose build --no-cache
-    docker-compose up -d
+    $DOCKER_COMPOSE_CMD down
+    $DOCKER_COMPOSE_CMD build --no-cache
+    $DOCKER_COMPOSE_CMD up -d
     print_success "Application updated."
 }
 
@@ -203,7 +211,7 @@ case "$1" in
         update
         ;;
     status)
-        docker-compose ps
+        $DOCKER_COMPOSE_CMD ps
         ;;
     help|--help|-h)
         show_help

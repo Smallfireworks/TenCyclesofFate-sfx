@@ -7,18 +7,13 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-3.5-turbo"
     OPENAI_MODEL_CHEAT_CHECK: str = "qwen3-235b-a22b"
 
-    # JWT Settings for OAuth2
+    # JWT Settings
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 600
 
     # Database URL
     DATABASE_URL: str = "sqlite:///./veloera.db"
-
-    # Linux.do OAuth Settings
-    LINUXDO_CLIENT_ID: str | None = None
-    LINUXDO_CLIENT_SECRET: str | None = None
-    LINUXDO_SCOPE: str = "read"
 
     # Authentication Settings (Simple Username/Password)
     AUTH_USERS: str | None = None  # Format: username1:password1,username2:password2

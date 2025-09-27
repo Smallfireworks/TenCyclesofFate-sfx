@@ -19,7 +19,7 @@
   - **框架**: FastAPI
   - **Web 服务器**: Uvicorn
   - **实时通信**: WebSockets
-  - **认证**: Python-JOSE (JWT), Authlib (OAuth)
+  - **认证**: Python-JOSE (JWT), bcrypt (密码哈希)
   - **数据库**: SQLite (用于存储兑换码)
   - **AI 集成**: OpenAI API
   - **依赖管理**: uv / pip
