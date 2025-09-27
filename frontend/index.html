@@ -49,9 +49,25 @@
       <!-- Game View -->
       <div id="game-view" class="view">
         <header id="game-header">
-          <h1>浮生一梦</h1>
+          <div class="header-left">
+            <button
+              id="status-toggle"
+              class="toggle-button"
+              title="收起/展开状态栏"
+            >
+              📜
+            </button>
+            <h1>浮生一梦</h1>
+          </div>
           <div id="game-status">
             <span>剩余机缘: <span id="opportunities">10</span></span>
+            <button
+              id="status-float"
+              class="toggle-button"
+              title="浮动/停靠状态栏"
+            >
+              📌
+            </button>
             <button id="logout-button" class="logout-button">登出</button>
           </div>
         </header>

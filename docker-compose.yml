@@ -19,6 +19,19 @@ services:
       - ALGORITHM=${ALGORITHM:-HS256}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-600}
 
+      # AI Provider Switch
+      - AI_PROVIDER=${AI_PROVIDER:-auto}
+      - AI_PROVIDER_FALLBACK=${AI_PROVIDER_FALLBACK:-openai}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - GEMINI_BASE_URL=${GEMINI_BASE_URL}
+      - BLOCK_GEMINI_IN_MAINLAND=${BLOCK_GEMINI_IN_MAINLAND:-true}
+
+      # Feature toggles
+      - REDEMPTION_ENABLED=${REDEMPTION_ENABLED:-false}
+      - INHERITANCE_ENABLED=${INHERITANCE_ENABLED:-true}
+      - BANNED_REFRESH_BLOCK=${BANNED_REFRESH_BLOCK:-true}
+
       # Database
       - DATABASE_URL=sqlite:///data/veloera.db
 

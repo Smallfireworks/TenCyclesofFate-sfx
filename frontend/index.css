@@ -1,4 +1,4 @@
-/* --- 
+/* ---
 Theme: 江南园林 (Jiangnan Garden)
 --- */
 
@@ -244,6 +244,33 @@ body::after {
   color: var(--title-color);
 }
 
+#game-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.toggle-button {
+  padding: 0.3rem 0.6rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.toggle-button:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+/* Collapsed status panel */
+#game-view.collapsed-status {
+  grid-template-columns: 1fr;
+  grid-template-areas: "header" "main" "action";
+}
+#game-view.collapsed-status #status-panel {
+  display: none;
+}
+
 .logout-button {
   padding: 0.4rem 0.8rem;
   background: transparent;
@@ -268,7 +295,7 @@ body::after {
   overflow-y: auto;
   border-right: 2px solid #5a4a3a;
   max-height: calc(100vh - 120px);
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 #status-panel p {
   font-family: var(--font-sans);
@@ -281,7 +308,7 @@ body::after {
   margin-bottom: 0.8rem;
 }
 #character-status {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
@@ -301,6 +328,36 @@ body::after {
   padding: 0.5rem;
   background-color: rgba(0, 0, 0, 0.03);
   outline: none;
+}
+
+#status-panel.floating {
+  position: fixed;
+  top: 80px;
+  left: 20px;
+  width: 300px;
+  max-height: 70vh;
+  z-index: 3000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+#status-panel.floating .details-content {
+  max-height: 50vh;
+  overflow: auto;
+}
+#game-view.floating-status {
+  grid-template-columns: 1fr;
+  grid-template-areas: "header" "main" "action";
+}
+
+#status-panel.floating .resizer {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  right: 6px;
+  bottom: 6px;
+  cursor: se-resize;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 3px;
 }
 
 #character-status summary::marker {
@@ -341,8 +398,8 @@ body::after {
   padding: 1.5rem;
   overflow-y: auto;
   line-height: 1.8;
-  font-size: 1rem;
-  background: rgba(255, 255, 255, 0.95);
+  font-size: 1.1rem;
+  background: #fbf7ef;
   border-radius: 8px;
   margin: 0.8rem;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);

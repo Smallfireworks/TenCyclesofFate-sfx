@@ -12,6 +12,9 @@ const DOMElements = {
   gameView: document.getElementById("game-view"),
   loginForm: document.getElementById("login-form"),
   loginError: document.getElementById("login-error"),
+  loginButton: document.querySelector(".login-button"),
+  statusToggle: document.getElementById("status-toggle"),
+  statusFloat: document.getElementById("status-float"),
   logoutButton: document.getElementById("logout-button"),
   narrativeWindow: document.getElementById("narrative-window"),
   characterStatus: document.getElementById("character-status"),
@@ -154,6 +157,28 @@ const socketManager = {
     }
   },
 };
+// Apply persisted sidebar state
+const collapsed = localStorage.getItem("collapsedStatusPanel") === "1";
+document
+  .getElementById("game-view")
+  .classList.toggle("collapsed-status", collapsed);
+
+// Apply floating status panel state
+const floatOn = localStorage.getItem("floatingStatusPanel") === "1";
+const gv2 = DOMElements.gameView;
+gv2.classList.toggle("floating-status", floatOn);
+if (floatOn) {
+  const panel = document.getElementById("status-panel");
+  panel.classList.add("floating");
+  const x = parseInt(localStorage.getItem("statusPanelLeft") || "20", 10);
+  const y = parseInt(localStorage.getItem("statusPanelTop") || "80", 10);
+  const w = parseInt(localStorage.getItem("statusPanelW") || "300", 10);
+  const h = parseInt(localStorage.getItem("statusPanelH") || "360", 10);
+  panel.style.left = x + "px";
+  panel.style.top = y + "px";
+  panel.style.width = w + "px";
+  panel.style.height = h + "px";
+}
 
 // --- UI & Rendering ---
 function showView(viewId) {
@@ -161,6 +186,153 @@ function showView(viewId) {
     .querySelectorAll(".view")
     .forEach((v) => v.classList.remove("active"));
   document.getElementById(viewId).classList.add("active");
+}
+// Setup status panel UI (toggle, float, drag, resize, snap)
+function setupStatusPanelUI() {
+  if (window.__statusPanelUISetup) return;
+  window.__statusPanelUISetup = true;
+  const gv = DOMElements.gameView;
+  const panel = document.getElementById("status-panel");
+  if (!panel) return;
+
+  // Collapse/expand entire panel
+  if (DOMElements.statusToggle) {
+    DOMElements.statusToggle.addEventListener("click", () => {
+      const now = !gv.classList.contains("collapsed-status");
+      gv.classList.toggle("collapsed-status", now);
+      localStorage.setItem("collapsedStatusPanel", now ? "1" : "0");
+    });
+  }
+
+  // Helper: ensure resizer handle exists
+  function ensureResizer() {
+    if (panel.querySelector(".resizer")) return;
+    const resizer = document.createElement("div");
+    resizer.className = "resizer";
+    panel.appendChild(resizer);
+
+    let resizing = false;
+    let startX = 0,
+      startY = 0;
+    let startW = 0,
+      startH = 0;
+    resizer.addEventListener("mousedown", (e) => {
+      if (!panel.classList.contains("floating")) return;
+      e.stopPropagation();
+      resizing = true;
+      const rect = panel.getBoundingClientRect();
+      startX = e.clientX;
+      startY = e.clientY;
+      startW = rect.width;
+      startH = rect.height;
+      document.body.style.userSelect = "none";
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!resizing) return;
+      const minW = 220,
+        minH = 160;
+      const newW = Math.max(minW, startW + (e.clientX - startX));
+      const newH = Math.max(minH, startH + (e.clientY - startY));
+      panel.style.width = newW + "px";
+      panel.style.maxHeight = "none";
+      panel.style.height = newH + "px";
+    });
+    window.addEventListener("mouseup", () => {
+      if (!resizing) return;
+      resizing = false;
+      document.body.style.userSelect = "";
+      localStorage.setItem(
+        "statusPanelW",
+        String(parseInt(panel.style.width || "300", 10))
+      );
+      localStorage.setItem(
+        "statusPanelH",
+        String(parseInt(panel.style.height || "300", 10))
+      );
+    });
+  }
+
+  // Float/dock toggle
+  if (DOMElements.statusFloat) {
+    DOMElements.statusFloat.addEventListener("click", () => {
+      const now = !panel.classList.contains("floating");
+      panel.classList.toggle("floating", now);
+      gv.classList.toggle("floating-status", now);
+      localStorage.setItem("floatingStatusPanel", now ? "1" : "0");
+      if (now) {
+        // restore defaults/last
+        panel.style.left =
+          (localStorage.getItem("statusPanelLeft") || "20") + "px";
+        panel.style.top =
+          (localStorage.getItem("statusPanelTop") || "80") + "px";
+        const w = parseInt(localStorage.getItem("statusPanelW") || "300", 10);
+        const h = parseInt(localStorage.getItem("statusPanelH") || "360", 10);
+        panel.style.width = w + "px";
+        panel.style.height = h + "px";
+        ensureResizer();
+      } else {
+        panel.style.left =
+          panel.style.top =
+          panel.style.width =
+          panel.style.height =
+            "";
+      }
+    });
+  }
+
+  // Dragging (skip when grabbing resizer)
+  let dragging = false;
+  let offsetX = 0,
+    offsetY = 0;
+  panel.addEventListener("mousedown", (e) => {
+    if (!panel.classList.contains("floating")) return;
+    if (e.target.classList && e.target.classList.contains("resizer")) return;
+    dragging = true;
+    const rect = panel.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    document.body.style.userSelect = "none";
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const x = Math.max(
+      0,
+      Math.min(window.innerWidth - 100, e.clientX - offsetX)
+    );
+    const y = Math.max(
+      0,
+      Math.min(window.innerHeight - 100, e.clientY - offsetY)
+    );
+    panel.style.left = x + "px";
+    panel.style.top = y + "px";
+  });
+  window.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = "";
+    // edge snapping
+    const rect = panel.getBoundingClientRect();
+    const margin = 20,
+      snapT = 24;
+    let left = rect.left,
+      top = rect.top;
+    if (rect.left <= snapT) left = margin;
+    if (window.innerWidth - rect.right <= snapT)
+      left = window.innerWidth - rect.width - margin;
+    if (rect.top <= snapT) top = margin;
+    if (window.innerHeight - rect.bottom <= snapT)
+      top = window.innerHeight - rect.height - margin;
+    panel.style.left = Math.max(0, Math.floor(left)) + "px";
+    panel.style.top = Math.max(0, Math.floor(top)) + "px";
+    localStorage.setItem(
+      "statusPanelLeft",
+      String(parseInt(panel.style.left, 10))
+    );
+    localStorage.setItem(
+      "statusPanelTop",
+      String(parseInt(panel.style.top, 10))
+    );
+  });
 }
 
 function showLoading(isLoading) {
@@ -308,7 +480,14 @@ async function handleLogin(event) {
   const password = formData.get("password");
 
   if (!username || !password) {
+    if (DOMElements.loginButton) DOMElements.loginButton.disabled = true;
+
     DOMElements.loginError.textContent = "请输入用户名和密码";
+    return;
+  }
+
+  if (username.trim().length < 3 || password.trim().length < 3) {
+    DOMElements.loginError.textContent = "用户名和密码至少3个字符";
     return;
   }
 
@@ -319,6 +498,8 @@ async function handleLogin(event) {
     await api.login(username, password);
 
     // Login successful, initialize game
+    if (DOMElements.loginButton) DOMElements.loginButton.disabled = false;
+
     await initializeGame();
   } catch (error) {
     console.error("Login error:", error);
@@ -357,6 +538,160 @@ function handleAction(actionOverride = null) {
   // Special case for starting a trial to prevent getting locked out by is_processing flag
   if (action === "开始试炼") {
     // Allow starting a new trial even if the previous async task is in its finally block
+    // Setup status panel UI (toggle, float, drag, resize, snap)
+    function setupStatusPanelUI() {
+      if (window.__statusPanelUISetup) return;
+      window.__statusPanelUISetup = true;
+      const gv = DOMElements.gameView;
+      const panel = document.getElementById("status-panel");
+      if (!panel) return;
+
+      // Collapse/expand entire panel
+      if (DOMElements.statusToggle) {
+        DOMElements.statusToggle.addEventListener("click", () => {
+          const now = !gv.classList.contains("collapsed-status");
+          gv.classList.toggle("collapsed-status", now);
+          localStorage.setItem("collapsedStatusPanel", now ? "1" : "0");
+        });
+      }
+
+      // Helper: ensure resizer handle exists
+      function ensureResizer() {
+        if (panel.querySelector(".resizer")) return;
+        const resizer = document.createElement("div");
+        resizer.className = "resizer";
+        panel.appendChild(resizer);
+
+        let resizing = false;
+        let startX = 0,
+          startY = 0;
+        let startW = 0,
+          startH = 0;
+        resizer.addEventListener("mousedown", (e) => {
+          if (!panel.classList.contains("floating")) return;
+          e.stopPropagation();
+          resizing = true;
+          const rect = panel.getBoundingClientRect();
+          startX = e.clientX;
+          startY = e.clientY;
+          startW = rect.width;
+          startH = rect.height;
+          document.body.style.userSelect = "none";
+        });
+        window.addEventListener("mousemove", (e) => {
+          if (!resizing) return;
+          const minW = 220,
+            minH = 160;
+          const newW = Math.max(minW, startW + (e.clientX - startX));
+          const newH = Math.max(minH, startH + (e.clientY - startY));
+          panel.style.width = newW + "px";
+          panel.style.maxHeight = "none";
+          panel.style.height = newH + "px";
+        });
+        window.addEventListener("mouseup", () => {
+          if (!resizing) return;
+          resizing = false;
+          document.body.style.userSelect = "";
+          localStorage.setItem(
+            "statusPanelW",
+            String(parseInt(panel.style.width || "300", 10))
+          );
+          localStorage.setItem(
+            "statusPanelH",
+            String(parseInt(panel.style.height || "300", 10))
+          );
+        });
+      }
+
+      // Float/dock toggle
+      if (DOMElements.statusFloat) {
+        DOMElements.statusFloat.addEventListener("click", () => {
+          const now = !panel.classList.contains("floating");
+          panel.classList.toggle("floating", now);
+          gv.classList.toggle("floating-status", now);
+          localStorage.setItem("floatingStatusPanel", now ? "1" : "0");
+          if (now) {
+            // restore defaults/last
+            panel.style.left =
+              (localStorage.getItem("statusPanelLeft") || "20") + "px";
+            panel.style.top =
+              (localStorage.getItem("statusPanelTop") || "80") + "px";
+            const w = parseInt(
+              localStorage.getItem("statusPanelW") || "300",
+              10
+            );
+            const h = parseInt(
+              localStorage.getItem("statusPanelH") || "360",
+              10
+            );
+            panel.style.width = w + "px";
+            panel.style.height = h + "px";
+            ensureResizer();
+          } else {
+            panel.style.left =
+              panel.style.top =
+              panel.style.width =
+              panel.style.height =
+                "";
+          }
+        });
+      }
+
+      // Dragging (skip when grabbing resizer)
+      let dragging = false;
+      let offsetX = 0,
+        offsetY = 0;
+      panel.addEventListener("mousedown", (e) => {
+        if (!panel.classList.contains("floating")) return;
+        if (e.target.classList && e.target.classList.contains("resizer"))
+          return;
+        dragging = true;
+        const rect = panel.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        document.body.style.userSelect = "none";
+      });
+      window.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        const x = Math.max(
+          0,
+          Math.min(window.innerWidth - 100, e.clientX - offsetX)
+        );
+        const y = Math.max(
+          0,
+          Math.min(window.innerHeight - 100, e.clientY - offsetY)
+        );
+        panel.style.left = x + "px";
+        panel.style.top = y + "px";
+      });
+      window.addEventListener("mouseup", () => {
+        if (!dragging) return;
+        dragging = false;
+        document.body.style.userSelect = "";
+        // edge snapping
+        const rect = panel.getBoundingClientRect();
+        const margin = 20,
+          snapT = 24;
+        let left = rect.left,
+          top = rect.top;
+        if (rect.left <= snapT) left = margin;
+        if (window.innerWidth - rect.right <= snapT)
+          left = window.innerWidth - rect.width - margin;
+        if (rect.top <= snapT) top = margin;
+        if (window.innerHeight - rect.bottom <= snapT)
+          top = window.innerHeight - rect.height - margin;
+        panel.style.left = Math.max(0, Math.floor(left)) + "px";
+        panel.style.top = Math.max(0, Math.floor(top)) + "px";
+        localStorage.setItem(
+          "statusPanelLeft",
+          String(parseInt(panel.style.left, 10))
+        );
+        localStorage.setItem(
+          "statusPanelTop",
+          String(parseInt(panel.style.top, 10))
+        );
+      });
+    }
   } else {
     // For all other actions, prevent sending if another action is in flight.
     if (appState.gameState && appState.gameState.is_processing) return;
@@ -383,6 +718,22 @@ async function initializeGame() {
     if (error.message !== "Unauthorized") {
       console.error(`Session initialization failed: ${error.message}`);
     }
+    if (DOMElements.statusToggle) {
+      DOMElements.statusToggle.addEventListener("click", () => {
+        const gv = DOMElements.gameView;
+        const now = !gv.classList.contains("collapsed-status");
+        gv.classList.toggle("collapsed-status", now);
+        localStorage.setItem("collapsedStatusPanel", now ? "1" : "0");
+      });
+    }
+
+    // QoL: '/' focuses the action input
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "/" && DOMElements.gameView.classList.contains("active")) {
+        e.preventDefault();
+        DOMElements.actionInput.focus();
+      }
+    });
   } finally {
     // Ensure spinner is hidden regardless of outcome
     showLoading(false);
@@ -394,6 +745,16 @@ function init() {
   // If the user is logged in, it will show the game view.
   // If not, the catch block in initializeGame will handle showing the login view.
   initializeGame();
+  // UI wiring independent of login state
+  setupStatusPanelUI();
+
+  // QoL: '/' focuses the action input when in game view
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "/" && DOMElements.gameView.classList.contains("active")) {
+      e.preventDefault();
+      DOMElements.actionInput.focus();
+    }
+  });
 
   // Setup event listeners regardless of initial view
   DOMElements.loginForm.addEventListener("submit", handleLogin);

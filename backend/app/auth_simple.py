@@ -17,7 +17,8 @@ from pydantic import BaseModel
 from .config import settings
 
 # --- Setup ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use bcrypt_sha256 to safely handle long/unicode passwords and avoid 72-byte limit issues.
+pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="bcrypt")
 security = HTTPBearer(auto_error=False)
 
 # --- Models ---

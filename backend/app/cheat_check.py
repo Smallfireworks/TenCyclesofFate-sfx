@@ -1,7 +1,7 @@
 import logging
 import asyncio
 
-from . import openai_client
+from . import ai_provider as openai_client
 from . import state_manager
 from .config import settings
 

@@ -10,8 +10,9 @@ from datetime import date
 from pathlib import Path
 from fastapi import HTTPException, status
 
-from . import state_manager, openai_client, cheat_check, redemption
+from . import state_manager, ai_provider as openai_client, cheat_check, redemption
 from .websocket_manager import manager as websocket_manager
+from .config import settings
 
 # --- Logging ---
 logger = logging.getLogger(__name__)
@@ -112,6 +113,12 @@ async def refresh_daily_attempts(current_user: dict) -> dict:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No active session found for today"
         )
+    if settings.BANNED_REFRESH_BLOCK and session.get("banned"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are banned from refreshing today's session"
+        )
+
 
     if not session.get("daily_success_achieved"):
         raise HTTPException(
@@ -152,6 +159,22 @@ async def refresh_daily_attempts(current_user: dict) -> dict:
 - 在轮回中若遇道消身殒，该轮回所得将化为泡影，机缘不返
 - 一旦选择"破碎虚空"成功带出灵石，今日试炼即刻终结
 - 十次机缘皆尽而一无所获者，将面临"逆命抉择"的最终审判（未实现）
+    # --- Reincarnation Inheritance (lightweight, narrative-guided) ---
+    if settings.INHERITANCE_ENABLED:
+        try:
+            candidates = [
+                {"key": "luck", "desc": "初始气运微增", "system": "在新生之初，给予一次轻微的正向偏置，不要破坏随机性"},
+                {"key": "resilience", "desc": "心志更坚", "system": "遇挫叙事时稍偏向稳健处置一次，不要影响总体风险"},
+                {"key": "fortune_token", "desc": "前世余晖护身", "system": "开局前两幕遭遇更趋正面一次，幅度很小"},
+            ]
+            chosen = random.choice(candidates)
+            new_session["inheritance"] = [chosen]
+            inheritance_msg = f"【轮回印记】汝携前世烙印：{chosen['desc']}（本局叙事会适度体现）"
+            new_session["display_history"].append(inheritance_msg)
+            new_session["internal_history"].insert(1, {"role": "system", "content": f"轮回印记：{chosen['system']}。在叙事与状态生成时可轻微正向偏置一次，不要破坏随机性。"})
+        except Exception:
+            pass
+
 
 汝是否已准备好接受命运的考验？司命星君已恭候多时，静待汝开启第一场浮生之梦。
 """
@@ -217,6 +240,13 @@ def end_game_and_get_code(
 ) -> tuple[dict, dict]:
     if spirit_stones <= 0:
         return {"error": "未获得灵石，无法生成兑换码。"}, {}
+    if not settings.REDEMPTION_ENABLED:
+        final_message = "\n\n【天道静默】\n本服务器已关闭兑换码功能。你的功德已被天道记录，但今日试炼到此结束。请明日再来。"
+        return {"final_message": final_message}, {
+            "daily_success_achieved": True,
+            "redemption_code": None,
+        }
+
 
     converted_value = REWARD_SCALING_FACTOR * min(
         30, max(1, 3 * (spirit_stones ** (1 / 6)))
@@ -555,6 +585,7 @@ async def process_player_action(current_user: dict, action: str):
 > 你因严重违规，触发【天道斥逐】，被暂时剥夺试炼资格。（缘由：汝之行径，已涉嫌掌控天道、颠覆法则。）一日之后，方可再次踏入轮回之门。
 """
             new_state["daily_success_achieved"] = True
+            new_state["banned"] = True
             new_state["is_in_trial"], new_state["current_life"] = False, None
             new_state["opportunities_remaining"] = -10
         new_state["pending_punishment"] = None
